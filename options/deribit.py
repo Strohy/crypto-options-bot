@@ -63,35 +63,37 @@ class Deribit(Exchange):
 
         while True:
             raw = await self.ws.recv()
-            data = json.loads(raw)
+            message = json.loads(raw)
+            self.subscribeCallback(message)
 
-            if "params" in data:
-                update = data["params"]["data"]
-                instrument_name = update["instrument_name"]
-                bid = update.get("best_bid_price")
-                ask = update.get("best_ask_price")
-                timestamp = datetime.now().isoformat()
+    def subscribeCallback(self, message):
+        if "params" in message:
+            update = message["params"]["data"]
+            instrument_name = update["instrument_name"]
+            bid = update.get("best_bid_price")
+            ask = update.get("best_ask_price")
+            timestamp = datetime.now().isoformat()
 
-                # Change print to processing and update logic
-                print(
-                    {
-                        "exchange": "deribit",
-                        "instrument_name": instrument_name,
-                        "bid": bid,
-                        "ask": ask,
-                        "timestamp": timestamp,
-                    }
-                )
+            # Change print to processing and update logic
+            print(
+                {
+                    "exchange": "deribit",
+                    "instrument_name": instrument_name,
+                    "bid": bid,
+                    "ask": ask,
+                    "timestamp": timestamp,
+                }
+            )
 
 
 async def main():
     deribit = Deribit()
     await deribit.connect()
 
-    instruments = ["ETH-18JUL25-3000-C"]
+    instruments = ["ETH-21JUL25-3600-C"]
     # options = await deribit.list_options(); print(options)
     # bid_ask = await deribit.get_bid_ask(instruments[0]); print(bid_ask)
-    # await deribit.subscribe_bid_ask(instruments)
+    await deribit.subscribe_bid_ask(instruments)
 
 
 asyncio.run(main())
