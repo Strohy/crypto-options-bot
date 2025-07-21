@@ -1,14 +1,13 @@
 import asyncio
-import websockets
 import json
 from datetime import datetime
-from .base_exchange import Exchange, OptionData
+from .base_exchange import Exchange, OptionData, Option
 from okx.websocket.WsPublicAsync import WsPublicAsync
 import okx.PublicData as PublicData
 import okx.MarketData as MarketData
 
 
-class OKX(Exchange):
+class Okx(Exchange):
     def __init__(self):
         self.url = "wss://ws.okx.com:8443/ws/v5/public"
         self.ws = None
@@ -20,19 +19,19 @@ class OKX(Exchange):
         await self.ws.start()
 
     async def list_options(self, currency: str = "ETH"):
-        res = self.public_api.get_instruments(instType="OPTION", instFamily="ETH-USD")
-        return [item["instId"] for item in res["data"]]
+        api_response = self.public_api.get_instruments(instType="OPTION", instFamily="ETH-USD")
+        return [inst["instId"] for inst in api_response["data"]]
 
     async def get_bid_ask(self, instrument: str) -> OptionData:
-        res = self.market_api.get_ticker(instId=instrument)
+        api_response = self.market_api.get_ticker(instId=instrument)
         return {
             "exchange": "okx",
             "symbol": "ETH",
             "option_type": instrument.split("-")[4],
             "strike": instrument.split("-")[3],
             "expiry": instrument.split("-")[2],
-            "bid": res["data"][0]["bidPx"],
-            "ask": res["data"][0]["askPx"],
+            "bid": api_response["data"][0]["bidPx"],
+            "ask": api_response["data"][0]["askPx"],
             "instrument_name": instrument,
             "timestamp": datetime.now().isoformat(),
         }
@@ -42,39 +41,55 @@ class OKX(Exchange):
             {"channel": "tickers", "instId": instrument} for instrument in instruments
         ]
         while True:
-            await self.ws.subscribe(args, callback=self.subscribeCallback)
+            await self.ws.subscribe(args, callback=self.subscribe_callback)
             while True:
                 await asyncio.sleep(3600)
 
-    def subscribeCallback(self, raw):
-        message = json.loads(raw)
+    def subscribe_callback(self, raw):
+        response = json.loads(raw)
 
-        if "data" in message:
-            update = message["data"][0]
+        if "data" in response:
+            update = response["data"][0]
             instrument_name = update.get("instId")
-            bid = update.get("bidPx")
-            ask = update.get("askPx")
+            bid_price = update.get("bidPx")
+            ask_price = update.get("askPx")
             timestamp = datetime.now().isoformat()
 
             print(
                 {
                     "exchange": "okx",
                     "instrument_name": instrument_name,
-                    "bid": bid,
-                    "ask": ask,
+                    "bid": bid_price,
+                    "ask": ask_price,
                     "timestamp": timestamp,
                 }
             )
 
+    def to_option(self, instrument_str: str) -> Option:
+        parts = instrument_str.split("-")
+        return {
+            "uly_currency": parts[0],
+            "expiry": self._to_date(parts[2]),
+            "strike": int(parts[3]),
+            "option_type": parts[4],
+        }
+    
+    def _to_date(self, date_str: str) -> datetime.date:
+        """Convert date string to datetime.date object."""
+        return datetime.strptime(date_str, "%y%m%d").date()
 
 async def main():
-    okx = OKX()
+    okx = Okx()
     await okx.connect()
 
     instruments = ["ETH-USD-250721-3600-C"]
     # options = await okx.list_options("ETH"); print(options)
     # bid_ask = await okx.get_bid_ask(instruments[0]); print(bid_ask)
-    await okx.subscribe_bid_ask(instruments)
+    # await okx.subscribe_bid_ask(instruments)
+
+    options = await okx.list_options("ETH")
+    op0 = okx.to_option(options[0]); print(op0)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

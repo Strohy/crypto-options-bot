@@ -2,7 +2,7 @@ import asyncio
 import websockets
 import json
 from datetime import datetime
-from .base_exchange import Exchange, OptionData
+from .base_exchange import Exchange, OptionData, Option
 
 
 class Deribit(Exchange):
@@ -25,10 +25,10 @@ class Deribit(Exchange):
             "method": "public/get_instruments",
             "params": {"currency": currency, "kind": "option", "expired": False},
         }
-        res = await self._send(msg)
-        if res.get("result") is not None:
-            return [instr["instrument_name"] for instr in res["result"]]
-        return res["error"]
+        api_response = await self._send(msg)
+        if api_response.get("result") is not None:
+            return [instr["instrument_name"] for instr in api_response["result"]]
+        return api_response["error"]
 
     async def get_bid_ask(self, instrument: str) -> OptionData:
         msg = {
@@ -37,8 +37,8 @@ class Deribit(Exchange):
             "method": "public/ticker",
             "params": {"instrument_name": instrument},
         }
-        res = await self._send(msg)
-        data = res.get("result", {})
+        api_response = await self._send(msg)
+        data = api_response.get("result", {})
         return {
             "exchange": "deribit",
             "symbol": "ETH",
@@ -64,14 +64,14 @@ class Deribit(Exchange):
         while True:
             raw = await self.ws.recv()
             message = json.loads(raw)
-            self.subscribeCallback(message)
+            self.subscribe_callback(message)
 
-    def subscribeCallback(self, message):
-        if "params" in message:
-            update = message["params"]["data"]
+    def subscribe_callback(self, response):
+        if "params" in response:
+            update = response["params"]["data"]
             instrument_name = update["instrument_name"]
-            bid = update.get("best_bid_price")
-            ask = update.get("best_ask_price")
+            bid_price = update.get("best_bid_price")
+            ask_price = update.get("best_ask_price")
             timestamp = datetime.now().isoformat()
 
             # Change print to processing and update logic
@@ -79,11 +79,25 @@ class Deribit(Exchange):
                 {
                     "exchange": "deribit",
                     "instrument_name": instrument_name,
-                    "bid": bid,
-                    "ask": ask,
+                    "bid": bid_price,
+                    "ask": ask_price,
                     "timestamp": timestamp,
                 }
             )
+
+    def to_option(self, instrument_str: str) -> Option:
+        """Convert instrument string to Option."""
+        parts = instrument_str.split("-")
+        return {
+            "uly_currency": parts[0],
+            "expiry": self._to_date(parts[1]),
+            "strike": int(parts[2]),
+            "option_type": parts[3],
+        }
+
+    def _to_date(self, date_str: str) -> datetime.date:
+        """Convert date string to datetime.date object."""
+        return datetime.strptime(date_str, "%d%b%y").date()
 
 
 async def main():
@@ -91,9 +105,13 @@ async def main():
     await deribit.connect()
 
     instruments = ["ETH-21JUL25-3600-C"]
-    # options = await deribit.list_options(); print(options)
+    # options = await deribit.list_options("ETH"); print(options)
     # bid_ask = await deribit.get_bid_ask(instruments[0]); print(bid_ask)
-    await deribit.subscribe_bid_ask(instruments)
+    # await deribit.subscribe_bid_ask(instruments)
+    
+    options = await deribit.list_options("ETH")
+    op0 = deribit.to_option(options[0]); print(op0)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
