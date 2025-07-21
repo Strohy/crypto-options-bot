@@ -1,10 +1,18 @@
 from typing import TypedDict
-import pandas as pd
+from datetime import datetime
+from dataclasses import dataclass
+
+@dataclass
+class Option:
+    uly_currency: str
+    expiry: datetime.date
+    strike: int
+    option_type: str
 
 
 class OptionData(TypedDict):
     exchange: str
-    symbol: str
+    uly_currency: str
     option_type: str
     strike: any
     expiry: str
@@ -27,6 +35,10 @@ class Exchange:
         """Return latest bid/ask for a given option."""
         pass
 
-    async def subscribe_bid_ask(self, instruments: list[str], database: pd.DataFrame):
+    async def subscribe_bid_ask(self, instruments: list[str]):
         """Subscribe to bid/ask updates for a list of instruments."""
+        pass
+
+    def to_option(self, instrument: str) -> Option:
+        """Convert instrument string to Option."""
         pass
