@@ -2,7 +2,7 @@ import asyncio
 import websockets
 import json
 from datetime import datetime
-from .base_exchange import Exchange, OptionData, Option
+from .base_exchange import Exchange, Option, OptionQuoteUpdate
 
 
 class Deribit(Exchange):
@@ -18,7 +18,7 @@ class Deribit(Exchange):
         response = await self.ws.recv()
         return json.loads(response)
 
-    async def list_options(self, currency: str = "ETH"):
+    async def list_options(self, currency: str = "ETH") -> list[Option]:
         msg = {
             "id": 8772,
             "jsonrpc": "2.0",
@@ -27,10 +27,13 @@ class Deribit(Exchange):
         }
         api_response = await self._send(msg)
         if api_response.get("result") is not None:
-            return [instr["instrument_name"] for instr in api_response["result"]]
+            return [
+                self.to_option(instr["instrument_name"])
+                for instr in api_response["result"]
+            ]
         return api_response["error"]
 
-    async def get_bid_ask(self, instrument: str) -> OptionData:
+    async def get_bid_ask(self, instrument: str) -> OptionQuoteUpdate:
         msg = {
             "id": 8772,
             "jsonrpc": "2.0",
@@ -39,19 +42,14 @@ class Deribit(Exchange):
         }
         api_response = await self._send(msg)
         data = api_response.get("result", {})
-        return {
-            "exchange": "deribit",
-            "symbol": "ETH",
-            "option_type": instrument.split("-")[3],
-            "strike": instrument.split("-")[2],
-            "expiry": instrument.split("-")[1],
-            "bid": data.get("best_bid_price"),
-            "ask": data.get("best_ask_price"),
-            "instrument_name": instrument,
-            "timestamp": datetime.now().isoformat(),
-        }
+        return OptionQuoteUpdate(
+            exchange="deribit",
+            option_id=instrument,
+            bid=data.get("best_bid_price"),
+            ask=data.get("best_ask_price"),
+        )
 
-    async def subscribe_bid_ask(self, instruments: list[str]):
+    async def subscribe_bid_ask(self, instruments: list[str], function):
         channels = [f"quote.{i}" for i in instruments]
         msg = {
             "jsonrpc": "2.0",
@@ -64,9 +62,9 @@ class Deribit(Exchange):
         while True:
             raw = await self.ws.recv()
             message = json.loads(raw)
-            self.subscribe_callback(message)
+            self.subscribe_callback(message, function)
 
-    def subscribe_callback(self, response):
+    def subscribe_callback(self, response, function):
         if "params" in response:
             update = response["params"]["data"]
             instrument_name = update["instrument_name"]
@@ -75,29 +73,36 @@ class Deribit(Exchange):
             timestamp = datetime.now().isoformat()
 
             # Change print to processing and update logic
-            print(
-                {
-                    "exchange": "deribit",
-                    "instrument_name": instrument_name,
-                    "bid": bid_price,
-                    "ask": ask_price,
-                    "timestamp": timestamp,
-                }
+            function(
+                OptionQuoteUpdate(
+                    exchange="deribit",
+                    option_id=self.to_option(instrument_name).id(),
+                    bid=bid_price,
+                    ask=ask_price,
+                )
             )
 
     def to_option(self, instrument_str: str) -> Option:
         """Convert instrument string to Option."""
         parts = instrument_str.split("-")
-        return {
-            "uly_currency": parts[0],
-            "expiry": self._to_date(parts[1]),
-            "strike": int(parts[2]),
-            "option_type": parts[3],
-        }
+        return Option(
+            uly_currency=parts[0],
+            expiry=self._to_date(parts[1]),
+            strike=int(parts[2]),
+            option_type=parts[3],
+        )
 
     def _to_date(self, date_str: str) -> datetime.date:
         """Convert date string to datetime.date object."""
         return datetime.strptime(date_str, "%d%b%y").date()
+
+    def from_option(self, option) -> str:
+        return (
+            f"{option.uly_currency}-"
+            f"{option.expiry.strftime('%d%b%y').upper()}-"
+            f"{option.strike}-"
+            f"{option.option_type}"
+        )
 
 
 async def main():
@@ -108,9 +113,10 @@ async def main():
     # options = await deribit.list_options("ETH"); print(options)
     # bid_ask = await deribit.get_bid_ask(instruments[0]); print(bid_ask)
     # await deribit.subscribe_bid_ask(instruments)
-    
-    options = await deribit.list_options("ETH")
-    op0 = deribit.to_option(options[0]); print(op0)
+
+    option = deribit.to_option(instruments[0])
+    print((repr(option)))
+    print(deribit.from_option(option))
 
 
 if __name__ == "__main__":

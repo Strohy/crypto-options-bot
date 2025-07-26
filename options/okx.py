@@ -1,7 +1,7 @@
 import asyncio
 import json
 from datetime import datetime
-from .base_exchange import Exchange, OptionData, Option
+from .base_exchange import Exchange, OptionQuoteUpdate, Option
 from okx.websocket.WsPublicAsync import WsPublicAsync
 import okx.PublicData as PublicData
 import okx.MarketData as MarketData
@@ -19,10 +19,12 @@ class Okx(Exchange):
         await self.ws.start()
 
     async def list_options(self, currency: str = "ETH"):
-        api_response = self.public_api.get_instruments(instType="OPTION", instFamily="ETH-USD")
-        return [inst["instId"] for inst in api_response["data"]]
+        api_response = self.public_api.get_instruments(
+            instType="OPTION", instFamily="ETH-USD"
+        )
+        return [self.to_option(inst["instId"]) for inst in api_response["data"]]
 
-    async def get_bid_ask(self, instrument: str) -> OptionData:
+    async def get_bid_ask(self, instrument: str) -> OptionQuoteUpdate:
         api_response = self.market_api.get_ticker(instId=instrument)
         return {
             "exchange": "okx",
@@ -67,16 +69,25 @@ class Okx(Exchange):
 
     def to_option(self, instrument_str: str) -> Option:
         parts = instrument_str.split("-")
-        return {
-            "uly_currency": parts[0],
-            "expiry": self._to_date(parts[2]),
-            "strike": int(parts[3]),
-            "option_type": parts[4],
-        }
-    
+        return Option(
+            uly_currency=parts[0],
+            expiry=self._to_date(parts[2]),
+            strike=int(parts[3]),
+            option_type=parts[4],
+        )
+
     def _to_date(self, date_str: str) -> datetime.date:
         """Convert date string to datetime.date object."""
         return datetime.strptime(date_str, "%y%m%d").date()
+
+    def from_option(self, option) -> str:
+        return (
+            f"{option.uly_currency}-USD"
+            f"-{option.expiry.strftime('%y%m%d')}"
+            f"-{option.strike}"
+            f"-{option.option_type}"
+        )
+
 
 async def main():
     okx = Okx()
@@ -87,8 +98,8 @@ async def main():
     # bid_ask = await okx.get_bid_ask(instruments[0]); print(bid_ask)
     # await okx.subscribe_bid_ask(instruments)
 
-    options = await okx.list_options("ETH")
-    op0 = okx.to_option(options[0]); print(op0)
+    option = okx.to_option(instruments[0])
+    print(okx.from_option(option))
 
 
 if __name__ == "__main__":
