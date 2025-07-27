@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 
-@dataclass
+@dataclass(frozen=True, eq=True)
 class Option:
     uly_currency: str
     expiry: datetime.date
@@ -17,13 +17,13 @@ class Option:
 @dataclass
 class OptionQuoteUpdate:
     exchange: str
-    option_id: str
+    option: Option
     bid: Optional[float]
     ask: Optional[float]
 
 
 class Exchange:
-    def connect(self):
+    async def connect(self):
         """Connect to the exchange WebSocket or REST."""
         pass
 
@@ -31,7 +31,7 @@ class Exchange:
         """Subscribe to ETH options bid/ask data."""
         pass
 
-    async def get_bid_ask(self, instrument_id: str) -> OptionQuoteUpdate:
+    async def get_bid_ask(self, instrument: str) -> OptionQuoteUpdate:
         """Return latest bid/ask for a given option."""
         pass
 
