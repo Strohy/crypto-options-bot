@@ -2,14 +2,15 @@ from options.deribit import Deribit
 from options.okx import Okx
 import asyncio
 import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from options.base_exchange import Option, OptionQuoteUpdate
+from typing import Optional
 
 
 @dataclass
 class Quote:
-    exchange: str
-    price: float
+    exchange: Optional[str] = None
+    price: Optional[float] = None
 
 
 @dataclass
@@ -17,46 +18,25 @@ class BestQuote:
     highest_bid: Quote
     lowest_ask: Quote
 
+    def update(self, new_quote: OptionQuoteUpdate):
+        if new_quote.bid is not None:
+            if self.highest_bid is None or new_quote.bid > self.highest_bid.price:
+                self.highest_bid = Quote(exchange=new_quote.exchange, price=new_quote.bid)
+
+        if new_quote.ask is not None:
+            if self.lowest_ask is None or new_quote.ask < self.lowest_ask.price:
+                self.lowest_ask = Quote(exchange=new_quote.exchange, price=new_quote.ask)
+
+        # If conditions are satisfied, execute trading logic
+
 
 class OptionQuotes:
     def __init__(self, options: list[Option]):
-        # self.options = {}
-        # for option in options:
-        #     self.options[repr(option)] = option
-        self.quotes = {}
-        for option in options:
-            self.quotes[option.id()] = BestQuote(highest_bid=None, lowest_ask=None)
+        # self.options = {option.id(): option for option in options}
+        self.quotes = {option.id(): BestQuote(highest_bid= None, lowest_ask=None) for option in options}
 
     def update(self, new_quote: OptionQuoteUpdate):
-        if (
-            self.quotes[new_quote.option_id].highest_bid is None
-            or new_quote.bid > self.quotes[new_quote.option_id].highest_bid.price
-        ):
-            # self.quotes[new_quote.option_id].highest_bid.price = new_quote.bid
-            # self.quotes[new_quote.option_id].highest_bid.exchange = new_quote.exchange
-
-            self.quotes[new_quote.option_id].highest_bid = Quote(
-                exchange=new_quote.exchange, price=new_quote.bid
-            )
-
-            print("updated bid")
-
-        if (
-            self.quotes[new_quote.option_id].lowest_ask is None
-            or new_quote.ask < self.quotes[new_quote.option_id].lowest_ask.price
-        ):
-            # self.quotes[new_quote.option_id].lowest_ask.price = new_quote.ask
-            # self.quotes[new_quote.option_id].lowest_ask.exchange = new_quote.exchange
-
-            self.quotes[new_quote.option_id].lowest_ask = Quote(
-                exchange=new_quote.exchange, price=new_quote.ask
-            )
-
-            print("updated ask")
-
-        print("Life goes")
-
-        # If conditions are satisfied, execute trading logic
+        self.quotes[new_quote.option_id].update(new_quote)
 
 
 exchange_registry = {
@@ -100,11 +80,26 @@ async def main():
 
     quotes = OptionQuotes(options_common[:1])
 
-    await deribit.subscribe_bid_ask(
-        [deribit.from_option(option) for option in options_common[:1]],
-        quotes.update,
+    # await deribit.subscribe_bid_ask(
+    #     options_common[:1],
+    #     quotes.update,
+    # )
+    # await okx.subscribe_bid_ask(
+    #     options_common[:1],
+    #     quotes.update,
+    # )
+
+    task1 = asyncio.create_task(
+        deribit.subscribe_bid_ask(options_common[:1], quotes.update)
     )
-    # okx.subscribe_bid_ask(list(map(okx.from_option, options_common)))
+    task2 = asyncio.create_task(
+        okx.subscribe_bid_ask(options_common[:1], quotes.update)
+    )
+
+    await asyncio.gather(
+        task1,
+        task2,
+    )
 
 
 if __name__ == "__main__":
