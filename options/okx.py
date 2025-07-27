@@ -18,36 +18,36 @@ class Okx(Exchange):
         self.ws = WsPublicAsync(url=self.url)
         await self.ws.start()
 
-    async def list_options(self, currency: str = "ETH"):
+    async def list_options(self, currency: str = "ETH") -> list[Option]:
         api_response = self.public_api.get_instruments(
             instType="OPTION", instFamily="ETH-USD"
         )
         return [self.to_option(inst["instId"]) for inst in api_response["data"]]
 
-    async def get_bid_ask(self, instrument: str) -> OptionQuoteUpdate:
+    async def get_bid_ask(self, instrument: Option) -> OptionQuoteUpdate:
+        instrument = self.from_option(instrument)
         api_response = self.market_api.get_ticker(instId=instrument)
-        return {
-            "exchange": "okx",
-            "symbol": "ETH",
-            "option_type": instrument.split("-")[4],
-            "strike": instrument.split("-")[3],
-            "expiry": instrument.split("-")[2],
-            "bid": api_response["data"][0]["bidPx"],
-            "ask": api_response["data"][0]["askPx"],
-            "instrument_name": instrument,
-            "timestamp": datetime.now().isoformat(),
-        }
+        return OptionQuoteUpdate(
+            exchange="okx",
+            bid=api_response["data"][0]["bidPx"],
+            ask=api_response["data"][0]["askPx"],
+        )
 
-    async def subscribe_bid_ask(self, instruments: list[str]):
+    async def subscribe_bid_ask(self, instruments: list[Option], function):
+        instruments = [self.from_option(option) for option in instruments]
         args = [
             {"channel": "tickers", "instId": instrument} for instrument in instruments
         ]
+
+        callback_with_handler = lambda raw: self.subscribe_callback(
+            raw, function
+        )
         while True:
-            await self.ws.subscribe(args, callback=self.subscribe_callback)
+            await self.ws.subscribe(args, callback=callback_with_handler)
             while True:
                 await asyncio.sleep(3600)
 
-    def subscribe_callback(self, raw):
+    def subscribe_callback(self, raw, function):
         response = json.loads(raw)
 
         if "data" in response:
@@ -55,16 +55,14 @@ class Okx(Exchange):
             instrument_name = update.get("instId")
             bid_price = update.get("bidPx")
             ask_price = update.get("askPx")
-            timestamp = datetime.now().isoformat()
 
-            print(
-                {
-                    "exchange": "okx",
-                    "instrument_name": instrument_name,
-                    "bid": bid_price,
-                    "ask": ask_price,
-                    "timestamp": timestamp,
-                }
+            function(
+                OptionQuoteUpdate(
+                    exchange="okx",
+                    option_id=self.to_option(instrument_name).id(),
+                    bid=float(bid_price) if bid_price else None,
+                    ask=float(ask_price) if ask_price else None,
+                )
             )
 
     def to_option(self, instrument_str: str) -> Option:
