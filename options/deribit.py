@@ -45,7 +45,7 @@ class Deribit(Exchange):
         data = api_response.get("result", {})
         return OptionQuoteUpdate(
             exchange="deribit",
-            option_id=instrument,
+            option=instrument,
             bid=data.get("best_bid_price"),
             ask=data.get("best_ask_price"),
         )
@@ -76,7 +76,7 @@ class Deribit(Exchange):
             function(
                 OptionQuoteUpdate(
                     exchange="deribit",
-                    option_id=self.to_option(instrument_name).id(),
+                    option=self.to_option(instrument_name),
                     bid=float(bid_price),
                     ask=float(ask_price),
                 )

@@ -39,9 +39,7 @@ class Okx(Exchange):
             {"channel": "tickers", "instId": instrument} for instrument in instruments
         ]
 
-        callback_with_handler = lambda raw: self.subscribe_callback(
-            raw, function
-        )
+        callback_with_handler = lambda raw: self.subscribe_callback(raw, function)
         while True:
             await self.ws.subscribe(args, callback=callback_with_handler)
             while True:
@@ -59,7 +57,7 @@ class Okx(Exchange):
             function(
                 OptionQuoteUpdate(
                     exchange="okx",
-                    option_id=self.to_option(instrument_name).id(),
+                    option=self.to_option(instrument_name),
                     bid=float(bid_price) if bid_price else None,
                     ask=float(ask_price) if ask_price else None,
                 )
