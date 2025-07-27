@@ -33,7 +33,8 @@ class Deribit(Exchange):
             ]
         return api_response["error"]
 
-    async def get_bid_ask(self, instrument: str) -> OptionQuoteUpdate:
+    async def get_bid_ask(self, instrument: Option) -> OptionQuoteUpdate:
+        instrument = self.from_option(instrument)
         msg = {
             "id": 8772,
             "jsonrpc": "2.0",
@@ -49,7 +50,8 @@ class Deribit(Exchange):
             ask=data.get("best_ask_price"),
         )
 
-    async def subscribe_bid_ask(self, instruments: list[str], function):
+    async def subscribe_bid_ask(self, instruments: list[Option], function):
+        instruments = [self.from_option(option) for option in instruments]
         channels = [f"quote.{i}" for i in instruments]
         msg = {
             "jsonrpc": "2.0",
@@ -70,15 +72,13 @@ class Deribit(Exchange):
             instrument_name = update["instrument_name"]
             bid_price = update.get("best_bid_price")
             ask_price = update.get("best_ask_price")
-            timestamp = datetime.now().isoformat()
 
-            # Change print to processing and update logic
             function(
                 OptionQuoteUpdate(
                     exchange="deribit",
                     option_id=self.to_option(instrument_name).id(),
-                    bid=bid_price,
-                    ask=ask_price,
+                    bid=float(bid_price),
+                    ask=float(ask_price),
                 )
             )
 
