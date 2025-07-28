@@ -10,9 +10,6 @@ class Option:
     strike: int
     option_type: str
 
-    def id(self) -> str:
-        return f"{self.uly_currency}-{self.expiry}-{self.strike}-{self.option_type}"
-
 
 @dataclass
 class OptionQuoteUpdate:
