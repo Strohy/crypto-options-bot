@@ -1,7 +1,7 @@
 import asyncio
 import json
 from datetime import datetime
-from .base_exchange import Exchange, OptionQuoteUpdate, Option
+from options.base_exchange import Exchange, OptionQuoteUpdate, Option
 from okx.websocket.WsPublicAsync import WsPublicAsync
 import okx.PublicData as PublicData
 import okx.MarketData as MarketData

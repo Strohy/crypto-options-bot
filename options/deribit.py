@@ -2,7 +2,7 @@ import asyncio
 import websockets
 import json
 from datetime import datetime
-from .base_exchange import Exchange, Option, OptionQuoteUpdate
+from options.base_exchange import Exchange, Option, OptionQuoteUpdate
 
 
 class Deribit(Exchange):
