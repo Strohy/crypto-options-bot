@@ -14,7 +14,7 @@ This project connects to multiple crypto exchanges (like Deribit, Binance) and a
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/option-aggregator.git
-cd option-aggregator
+git clone https://github.com/Strohy/crypto-options-bot.git
+cd crypto-options-bot
 pip install -r requirements.txt
 ```
