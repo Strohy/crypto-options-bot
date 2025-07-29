@@ -25,12 +25,15 @@ class Okx(Exchange):
         return [self.to_option(inst["instId"]) for inst in api_response["data"]]
 
     async def get_bid_ask(self, instrument: Option) -> OptionQuoteUpdate:
-        instrument = self.from_option(instrument)
-        api_response = self.market_api.get_ticker(instId=instrument)
+        instrument_str = self.from_option(instrument)
+        api_response = self.market_api.get_ticker(instId=instrument_str)
+        bid_price = api_response["data"][0]["bidPx"]
+        ask_price = api_response["data"][0]["askPx"]
         return OptionQuoteUpdate(
             exchange="okx",
-            bid=api_response["data"][0]["bidPx"],
-            ask=api_response["data"][0]["askPx"],
+            option=instrument,
+            bid=float(bid_price) if bid_price else None,
+            ask=float(ask_price) if ask_price else None,
         )
 
     async def subscribe_bid_ask(self, instruments: list[Option], function):

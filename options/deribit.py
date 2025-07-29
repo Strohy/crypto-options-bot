@@ -34,20 +34,22 @@ class Deribit(Exchange):
         return api_response["error"]
 
     async def get_bid_ask(self, instrument: Option) -> OptionQuoteUpdate:
-        instrument = self.from_option(instrument)
+        instrument_str = self.from_option(instrument)
         msg = {
             "id": 8772,
             "jsonrpc": "2.0",
             "method": "public/ticker",
-            "params": {"instrument_name": instrument},
+            "params": {"instrument_name": instrument_str},
         }
         api_response = await self._send(msg)
         data = api_response.get("result", {})
+        bid_price = data.get("best_bid_price")
+        ask_price = data.get("best_ask_price")
         return OptionQuoteUpdate(
             exchange="deribit",
             option=instrument,
-            bid=data.get("best_bid_price"),
-            ask=data.get("best_ask_price"),
+            bid=float(bid_price),
+            ask=float(ask_price),
         )
 
     async def subscribe_bid_ask(self, instruments: list[Option], function):
